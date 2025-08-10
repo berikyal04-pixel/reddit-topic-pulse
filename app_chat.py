@@ -1,5 +1,5 @@
 # ===== EMERGENCY PAUSE SWITCH =====
-PAUSE_APP = True
+PAUSE_APP = False
 # ==================================
 
 # app_chat.py — Text prompt → relevant Reddit posts (uses your existing backend)
