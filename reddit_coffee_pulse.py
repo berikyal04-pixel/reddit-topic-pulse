@@ -68,22 +68,61 @@ def init_reddit():
         raise RuntimeError("Missing Reddit API keys. Set Streamlit secrets or .env variables.")
 
     return praw.Reddit(
-        client_id=client_id,
-        client_secret=client_secret,
-        user_agent=user_agent or "PulseApp/0.1",
-        check_for_async=False
+    client_id=client_id,
+    client_secret=client_secret,
+    user_agent=user_agent or "CoffeePulse/0.1 by u/berikyal04",
+    check_for_async=False
+)
+
     )
 
 
 def pull_posts(reddit, subreddits, queries, since_days, max_posts):
-    """Search Reddit and return DataFrame of posts."""
+    """Search Reddit with throttling/backoff and return a DataFrame of posts."""
+    import time, re, random
+
+    # Defaults (safe). Can be overridden via Streamlit secrets or env.
+    REQUEST_SLEEP = 1.0   # seconds between items
+    SEARCH_PAUSE  = 3.0   # seconds between searches
+    BACKOFF_BASE  = 15.0  # seconds on generic errors
+
+    # Try to read tuning knobs from Streamlit Cloud secrets first
+    try:
+        import streamlit as st
+        s = getattr(st, "secrets", None)
+        if s and "throttle" in s:
+            REQUEST_SLEEP = float(s["throttle"].get("REQUEST_SLEEP", REQUEST_SLEEP))
+            SEARCH_PAUSE  = float(s["throttle"].get("SEARCH_PAUSE",  SEARCH_PAUSE))
+            BACKOFF_BASE  = float(s["throttle"].get("BACKOFF_BASE",  BACKOFF_BASE))
+    except Exception:
+        pass
+
+    # Or from environment variables (local dev)
+    REQUEST_SLEEP = float(os.getenv("REQUEST_SLEEP", REQUEST_SLEEP))
+    SEARCH_PAUSE  = float(os.getenv("SEARCH_PAUSE",  SEARCH_PAUSE))
+    BACKOFF_BASE  = float(os.getenv("BACKOFF_BASE",  BACKOFF_BASE))
+
+    def parse_wait_seconds(msg: str) -> int:
+        """Extract 'try again in X minutes/seconds' if present."""
+        m = re.search(r"in\s+(\d+)\s*minutes?", msg, re.I)
+        if m: return int(m.group(1)) * 60 + random.randint(5, 15)
+        m = re.search(r"in\s+(\d+)\s*seconds?", msg, re.I)
+        if m: return int(m.group(1)) + random.randint(1, 5)
+        return 0
+
     rows = []
     since_ts = time.time() - since_days * 86400
+
     for sub in subreddits:
         sr = reddit.subreddit(sub)
         for q in queries:
+            remaining = max_posts - len(rows)
+            if remaining <= 0:
+                break
+            limit = min(100, remaining)  # cap per (sub,query) batch
+
             try:
-                for post in sr.search(q, time_filter="week", sort="new", limit=200):
+                for post in sr.search(q, time_filter="week", sort="new", limit=limit):
                     if post.created_utc < since_ts:
                         continue
                     rows.append({
@@ -94,16 +133,23 @@ def pull_posts(reddit, subreddits, queries, since_days, max_posts):
                         "created_utc": post.created_utc,
                         "score": post.score,
                         "num_comments": post.num_comments,
-                        "query": q
+                        "query": q,
+                        "url": f"https://www.reddit.com{post.permalink}",
                     })
                     if len(rows) >= max_posts:
                         break
+                    time.sleep(REQUEST_SLEEP + random.random() * 0.5)  # gentle per-item sleep
+
             except Exception as e:
-                print(f"[WARN] search failed for r/{sub} q='{q}': {e}")
-            if len(rows) >= max_posts:
-                break
+                wait = parse_wait_seconds(str(e)) or BACKOFF_BASE
+                print(f"[RATELIMIT] Sleeping {wait:.0f}s after error: {e}")
+                time.sleep(wait)
+
+            time.sleep(SEARCH_PAUSE)  # pause between searches
+
         if len(rows) >= max_posts:
             break
+
     df = pd.DataFrame(rows).drop_duplicates(subset=["id"])
     if df.empty:
         return df

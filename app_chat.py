@@ -11,6 +11,10 @@ from datetime import datetime
 from reddit_coffee_pulse import (
     load_config, init_reddit, pull_posts, sentiment_scores, cluster_texts
 )
+@st.cache_data(ttl=600)  # cache result for 10 minutes for same params
+def cached_pull(subreddits, keywords, days, max_posts):
+    reddit = init_reddit()
+    return pull_posts(reddit, subreddits, keywords, days, max_posts)
 
 st.set_page_config(page_title="Reddit Q&A", page_icon="🔎", layout="wide")
 st.title("🔎 Reddit Q&A")
@@ -96,13 +100,8 @@ if prompt:
                 st.error(f"Reddit auth failed. Check secrets/.env. Details: {e}")
                 st.stop()
 
-            df = pull_posts(
-                reddit,
-                subreddits=subreddits,
-                queries=keywords,
-                since_days=days_eff,
-                max_posts=max_posts
-            )
+            df = cached_pull(subreddits, keywords, days_eff, max_posts)
+
 
             if df.empty:
                 st.write("_No posts fetched. Try more days, more subreddits, or simpler keywords._")
