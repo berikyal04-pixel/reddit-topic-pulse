@@ -1,3 +1,7 @@
+# ===== EMERGENCY PAUSE SWITCH =====
+PAUSE_APP = True
+# ==================================
+
 # app_chat.py — Text prompt → relevant Reddit posts (uses your existing backend)
 import re, os
 import pandas as pd
@@ -27,6 +31,9 @@ with st.sidebar:
     focus_complaints = st.checkbox("Focus on complaints", True)
 
 prompt = st.chat_input("Ask (e.g., 'who complained about keurig this week?')")
+if 'PAUSE_APP' in globals() and PAUSE_APP:
+    st.warning("App is temporarily paused. No Reddit requests will be made.")
+    st.stop()
 
 # Show previous chat
 if "history" not in st.session_state:
