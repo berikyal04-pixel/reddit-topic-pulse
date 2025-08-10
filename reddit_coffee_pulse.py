@@ -11,7 +11,6 @@ from sklearn.cluster import KMeans
 from nltk.sentiment import SentimentIntensityAnalyzer
 import nltk
 import yaml
-import matplotlib.pyplot as plt
 
 # Download sentiment lexicon if not already present
 try:
@@ -158,7 +157,15 @@ def cluster_texts(texts, k):
 
     return labels, cluster_names
 
+
 def generate_report(df, cluster_names, outdir):
+    # Try to import matplotlib only if available (cloud-safe)
+    try:
+        import matplotlib.pyplot as plt
+        HAVE_PLOTS = True
+    except Exception:
+        HAVE_PLOTS = False
+
     os.makedirs(outdir, exist_ok=True)
     n = len(df)
     cluster_counts = df["cluster"].value_counts().sort_index()
@@ -167,6 +174,7 @@ def generate_report(df, cluster_names, outdir):
     neg = (df["sentiment"] == -1).sum()
     start = df["date"].min().strftime("%b %d")
     end = df["date"].max().strftime("%b %d")
+
     report_path = os.path.join(outdir, "coffee_pulse_report.md")
     lines = []
     lines.append(f"# Reddit Coffee Pulse — {start}–{end}\n")
@@ -179,18 +187,25 @@ def generate_report(df, cluster_names, outdir):
     lines.append(f"- Positive: {pos} ({percent(pos, n)}%)")
     lines.append(f"- Neutral: {neu} ({percent(neu, n)}%)")
     lines.append(f"- Negative: {neg} ({percent(neg, n)}%)")
+
     with open(report_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
-    plt.figure()
-    ax = cluster_counts.plot(kind="bar")
-    ax.set_title("Theme sizes")
-    ax.set_xlabel("Theme #")
-    ax.set_ylabel("Post count")
-    plt.tight_layout()
-    plt.savefig(os.path.join(outdir, "cluster_sizes.png"))
-    plt.close()
+
+    # Only make the chart if matplotlib is available
+    if HAVE_PLOTS:
+        plt.figure()
+        ax = cluster_counts.plot(kind="bar")
+        ax.set_title("Theme sizes")
+        ax.set_xlabel("Theme #")
+        ax.set_ylabel("Post count")
+        plt.tight_layout()
+        plt.savefig(os.path.join(outdir, "cluster_sizes.png"))
+        plt.close()
+
     df.to_csv(os.path.join(outdir, "posts_with_clusters.csv"), index=False)
     return report_path
+
+
 
 def main():
     parser = argparse.ArgumentParser(description="Reddit Coffee Pulse")
