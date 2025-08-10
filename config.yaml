@@ -1,0 +1,20 @@
+subreddits:
+  - coffee
+  - barista
+  - espresso
+  - sustainability
+  - zerowaste
+
+queries:
+  - coffee
+  - sustainable pods
+  - zero waste coffee
+  - compostable pods
+  - dissolvable pods
+  - espresso pods
+  - BrewDrops
+
+since_days: 7
+k_clusters: 6
+max_posts: 800
+outdir: outputs
