@@ -9,8 +9,10 @@ import streamlit as st
 from datetime import datetime
 
 from reddit_coffee_pulse import (
-    load_config, init_reddit, pull_posts, sentiment_scores, cluster_texts
+    load_config, init_reddit, pull_posts, sentiment_scores
 )
+
+
 @st.cache_data(ttl=600)  # cache result for 10 minutes for same params
 def cached_pull(subreddits, keywords, days, max_posts):
     reddit = init_reddit()
