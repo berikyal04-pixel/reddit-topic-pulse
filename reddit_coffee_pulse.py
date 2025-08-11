@@ -74,7 +74,6 @@ def init_reddit():
     check_for_async=False
 )
 
-    )
 
 
 def pull_posts(reddit, subreddits, queries, since_days, max_posts):
